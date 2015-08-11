@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<BrainImages>
+  
+   
+   <ImageType>NDPI</ImageType>
+  
+   
+   <MetaData Version = "2.0" Resolution="40x"/>
+  
+   
+   <Sections>
+    
+      
+      <Section rotate="None" dataCompute="Distance" bigHeight="0" bigWidth="0" flipS="0" greenTresh="250000" maxGreenTresh="150" maxRedTresh="150" nCells="0" redTresh="250000">
+	  
+         
+         <imgName>ndpiFileName</imgName>
+	  
+         
+         <batchName>batch_</batchName>
+      
+         
+         <batchRoot> </batchRoot>
+      
+         
+         <Tiles iTiles="0" jTiles="0" nTiles="0">
+        
+            
+            <Tile tileHeight="0" tileWidth="0">i1j1</Tile>
+      
+         
+         </Tiles>
+      
+         
+         <ImageAnalysis ProcessingEndTime="" ProcessingStartTime="" Status="None">
+        
+            
+            <step0 Status="None">Split NDPI image in tiles</step0>
+        
+            
+            <step1 Status="None">Rotate tiles and save as tif</step1>
+        
+            
+            <step2 Status="None">Preprocess tiles</step2>
+        
+            
+            <step3 Status="None">Run FTK cell segmentation on tiles</step3>
+        
+            
+            <step4 Status="None">Run FTK associative rules for cell classification</step4>
+        
+            
+            <step5 Status="None">Compute min/max intensity</step5>
+      
+         
+         </ImageAnalysis>
+    
+      
+      </Section>
+  
+   
+   </Sections>
+
+
+</BrainImages>

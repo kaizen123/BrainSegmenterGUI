@@ -1,0 +1,43 @@
+<ProjectDefinition name="Project CCRC">
+    <Inputs>
+        <channel number="0" name="Dapi" type="NUCLEAR" />
+        <channel number="1" name="Arc" type="Neuron_arc_MARKER" />
+        <channel number="2" name="Homer" type="Neuron_homer_MARKER" />
+    </Inputs>
+    <Pipeline>
+        <step name="RAW_ASSOCIATIONS" />
+    </Pipeline>
+    <NuclearSegmentationParameters>
+        <parameter name="high_sensitivity" value="0.00" />
+        <parameter name="adaptive_binarization" value="1.00" />
+        <parameter name="LoG_size" value="30.00" />
+        <parameter name="min_scale" value="6.00" />
+        <parameter name="max_scale" value="15.00" />
+        <parameter name="xy_clustering_res" value="3.00" />
+        <parameter name="z_clustering_res" value="2.00" />
+        <parameter name="finalize_segmentation" value="1.00" />
+        <parameter name="sampling_ratio_XY_to_Z" value="3.00" />
+        <parameter name="Use_Distance_Map" value="1.00" />
+        <parameter name="refinement_range" value="6.00" />
+        <parameter name="min_object_size" value="100.00" />
+    </NuclearSegmentationParameters>
+    <CytoplasmSegmentationParameters>
+        <parameter name="draw_real_boundaries" value="1.00" />
+        <parameter name="remove_stromal_cell_boundaries" value="0.00" />
+        <parameter name="draw_synthetic_boundaries" value="0.00" />
+        <parameter name="radius_of_synthetic_boundaries" value="0.00" />
+        <parameter name="number_of_levels" value="1.00" />
+        <parameter name="number_of_levels_in_foreground" value="1.00" />
+    </CytoplasmSegmentationParameters>
+    <AssociationRules>
+        <AssociationRule Name="red_TOTAL" SegmentationSource="NUCLEAR" Target_Image="Arc" Outside_Distance="0" Inside_Distance="2" Use_Whole_Object="True" Use_Background_Subtraction="False" Use_MultiLevel_Thresholding="False" Number_Of_Thresholds="1" Number_Included_In_Foreground="1" Association_Type="TOTAL" />
+        <AssociationRule Name="green_TOTAL" SegmentationSource="NUCLEAR" Target_Image="Homer" Outside_Distance="0" Inside_Distance="2" Use_Whole_Object="True" Use_Background_Subtraction="False" Use_MultiLevel_Thresholding="False" Number_Of_Thresholds="1" Number_Included_In_Foreground="1" Association_Type="TOTAL" />
+    </AssociationRules>
+    <ClassificationParameters>
+        <TrainingFile Name="C:\Users\Lee Lab\Desktop\06132011 ccRCC Training Set 1.0.1.xml" />
+        <ClassificationParameter TrainingColumn="train_Endothelial" ClassificationColumns="CD34_TOTAL,CD34_AVG,CD34_SURR,SMA_TOTAL,SMA_AVG,SMA_SURR,CA_9_TOTAL,CA9_AVG,eccentricity,volume,radius_variation" />
+    </ClassificationParameters>
+    <SqlQueryParameters>
+        <SqlQuery name="write" value="SELECT * FROM IMAGE_TEST WHERE PREDICTION_ENDOTHELIAL=1" />
+    </SqlQueryParameters>
+</ProjectDefinition>

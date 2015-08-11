@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BrainImages>
+  <ImageType>NDPI</ImageType>
+  <MetaData dd="" Resolution="40x" />
+  <Slices>
+    <Slice Width="" Height="">
+      <ndpiSlicePath></ndpiSlicePath>
+      <ndpiSliceName />
+      <ImageAnalysis Status="InProgress" ProcessingStartTime="" ProcessingEndTime="" batchName=""></ImageAnalysis>
+      <Tiles iTiles="4" jTiles="4" nTiles="16">
+        <Tile Title="" Width="" Height="">
+          <TileImgAnalysis Status="InProgress" ProcessingStartTime="" ProcessingEndTime="">
+            <Step1 Status="Done">Split NDPI image in tiles</Step1>
+            <Step2 Status="None">Preprocess tiles</Step2>
+            <Step3 Status="">Run FTK cell segmentation on tiles</Step3>
+            <Step4 Status="">Run FTK associative rules for cell classification</Step4>
+          </TileImgAnalysis>
+        </Tile>
+        <Tile Title="" Width="" Height="">
+          <TileImgAnalysis Status="InProgress" ProcessingStartTime="" ProcessingEndTime="">
+            <Step1 Status="Done">Split NDPI image in tiles</Step1>
+            <Step2 Status="None">Preprocess tiles</Step2>
+            <Step3 Status="">Run FTK cell segmentation on tiles</Step3>
+            <Step4 Status="">Run FTK associative rules for cell classification</Step4>
+          </TileImgAnalysis>
+        </Tile>
+        <Tile Title="" Width="" Height="">
+          <TileImgAnalysis Status="InProgress" ProcessingStartTime="" ProcessingEndTime="">
+            <Step1 Status="Done">Split NDPI image in tiles</Step1>
+            <Step2 Status="None">Preprocess tiles</Step2>
+            <Step3 Status="">Run FTK cell segmentation on tiles</Step3>
+            <Step4 Status="">Run FTK associative rules for cell classification</Step4>
+          </TileImgAnalysis>
+        </Tile>
+      </Tiles>
+    </Slice>
+  </Slices>
+</BrainImages>
