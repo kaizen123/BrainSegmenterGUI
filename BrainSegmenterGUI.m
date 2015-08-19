@@ -449,11 +449,17 @@ if sel
         %wait(jobStep2);
         disp([dn ' preprocessed']);
         %waitbar(i/nFiles,hBar);
+        
+        % LM, 19Aug2015; delete intermediary images to save memory space    
+        rmdir(str3,'s')
+        %
+        
         waitbar(i/nFiles, hB, 'Step2 in progress (approx 40min) ...');   
     end
     %MIJ.run('Close All'); % doesn't close Exception window
     %close(hBar);     %close all;
     MIJ.exit;
+    
     waitbar(1, hB, 'Step2 in progress (approx 40min) ...');  
     close(hB);
     disp('Step2 Done.');
@@ -505,7 +511,7 @@ if sel
         inIDImg = [dn 'Results_Image_nuc.tif'];
         inImg = [dn 'Input_Image.xml'];
         outTable = [dn 'results_table_raw.txt']; %?raw
-        [status] = dos([strLib3 'projproc ' inImg ' ' inIDImg ' ' outTable ' ' inParam], '-echo');
+        [status] = dos(['projproc ' inImg ' ' inIDImg ' ' outTable ' ' inParam], '-echo');
         %save Command Window output to runSegmLog.txt
         %# use try/catch and rename to i1j1c %test
         if status
@@ -579,7 +585,7 @@ if sel
         inImg = [dn 'Input_Image.xml'];
         outTable = [dn 'results_table_raw.txt'];
         if exist(inImg, 'file') & exist(outTable, 'file')
-            [status] = dos([strLib3 'projproc ' inImg ' ' inIDImg ' ' outTable ' ' inParam], '-echo');
+            [status] = dos(['projproc ' inImg ' ' inIDImg ' ' outTable ' ' inParam], '-echo');
             disp(['=== RAW ASSOCIATIONS done in: ' fn]);
             %save Command Window output to runSegmLog.txt  %test       
         else
@@ -684,13 +690,13 @@ if sel
                 nTr = find(tracer);
                 nTr = length(nTr);
                 if nTr
-                    fprintf('There are only %d cells with tracer \n',nTr);
+                    fprintf('There are only %d cells with red tracer \n',nTr);
                     minRed = []; maxRed = [];
-                    [minRed maxRed] = getMinMaxIntensity(imnuc, img, ids, tracer);
+                    [minRed maxRed] = getMinMaxIntensity(imnuc, img, ids, tracer)
                     xy{k}.minRed = minRed;
                     xy{k}.maxRed = maxRed;
                 else
-                    fprintf('There are no cells with R tracer. Skip. \n');
+                    fprintf('There are no cells with red tracer. Skip. \n');
                     xy{k}.minRed = zeros(nIDs,1); xy{k}.maxRed = zeros(nIDs,1);
                 end
              end
@@ -714,19 +720,33 @@ if sel
                 nTr = find(tracer);
                 nTr = length(nTr);
                 if nTr
-                    fprintf('There are only %d cells with tracer \n',nTr);
+                    fprintf('There are only %d cells with green tracer \n',nTr);
                     minGreen = []; maxGreen = [];
-                    [minGreen maxGreen] = getMinMaxIntensity(imnuc, img, ids, tracer);
+                    [minGreen maxGreen] = getMinMaxIntensity(imnuc, img, ids, tracer)
                     xy{k}.minGreen = minGreen; xy{k}.maxGreen = maxGreen;
                 else
-                    fprintf('There are no cells with G tracer. Skip. \n');
+                    fprintf('There are no cells with green tracer. Skip. \n');
                     xy{k}.minGreen = zeros(nIDs,1); xy{k}.maxGreen = zeros(nIDs,1);
                 end
              end 
              %% Min/Max column append
+%test
+%{             
+%              if ~isempty(xy{k}.minRed)
+%                  colNames = {'minRed' 'maxRed'};
+%                  colData = [xy{k}.minRed xy{k}.maxRed];
+%                  farsight_results_append(fn,colNames,colData);
+%              end
+%              if ~isempty(xy{k}.minGreen)
+%                  colNames = { 'minGreen' 'maxGreen'};             
+%                  colData = [xy{k}.minGreen xy{k}.maxGreen];
+%                  farsight_results_append(fn,colNames,colData);
+%              end
+%}
              colNames = {'minRed' 'maxRed' 'minGreen' 'maxGreen'};             
              colData = [xy{k}.minRed xy{k}.maxRed xy{k}.minGreen xy{k}.maxGreen];
              farsight_results_append(fn,colNames,colData);
+             
          else
             disp(['File ' processedF ' doesn''t exist. Continue.']);
          end
@@ -736,7 +756,8 @@ if sel
     if j1 == 0
         errordlg(['Could not find processed tiles in directory ' batchFullName],'File Error');
         return;
-    end;
+    end;   
+    %% step done
     xyTemp = []; xBig = []; yBig = []; cBig = []; %xy{nTiles} = [];  
     disp('Step5 Done.');
     toc
@@ -776,6 +797,22 @@ if sel
         errordlg('Step3 not completed.');
         return
     end
+    %% if needed, create folders for regitration files
+    [dn fn ex] = fileparts(batchRoot);
+    [dn fn ex] = fileparts(dn);
+    dnBFI = [dn '\bfi4regis']
+    if ~exist(dnBFI, 'dir')
+        mkdir(dn,'bfi4regis');
+    end
+    dnRegis = [dn '\ndpi4regis']
+    if ~exist(dnRegis, 'dir')
+        mkdir(dn,'ndpi4regis');
+    end
+    dnSection = [dnRegis '\' sectName]
+    if ~exist(dnSection, 'dir')
+        mkdir(dnRegis,sectName);
+    end   
+    
     %% Load ij tile objects
     batchFullName = [batchRoot batchName];
     dirList = dir([batchFullName '\i*_processed']);
