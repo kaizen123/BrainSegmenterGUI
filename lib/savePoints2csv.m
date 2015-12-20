@@ -17,6 +17,7 @@ global bigWidth bigHeight
         T = table(x,y);
         writetable(T,csvFN);
         var11 = length(x2p5int2);
+        var11 = var11 - 1; %x y 
         disp(['Total of ' num2str(var11) ' Red positive cells saved to CSV file.']);        
 
         x2p5mm = double(x2p5int2);

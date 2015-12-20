@@ -78,9 +78,9 @@ global tileWidth tileHeight
 global imageAnalysisStatus
 global step0 step1 step2 step3 step4 step5
 global rotate dataCompute
-global verGUI
+global verGUI sectName regisRoot
 
-verGUI = '1.0.0';
+verGUI = '2.0.3';
 if nargin < 4
     [fn, dn] = uigetfile({'*.ndpi';'*.*'},'Select the NDPI Image for Analysis');
 else
@@ -104,7 +104,16 @@ homeGUI = which('BrainSegmenterGUI');
 [homeGUI f e] = fileparts(homeGUI);
 
 %% Create a default XML Analysis file
+%% init globals
 batchRoot = dn;
+[dn1 fn1 ext] = fileparts(batchRoot);
+[dn1 fn1 ext] = fileparts(dn1);
+sectName = fn1;
+regisRoot = [dn1 '\ndpi4regis\'];
+
+hObj = findobj('Tag', 'tabSection');
+set(hObj, 'Title', ['Section: ' sectName]);
+
 xmlFile = [batchRoot 'ImageAnalysisProgress.xml'];
 if exist(xmlFile, 'file')
     hM = msgbox('Progress XML file exists. Loading analysis...');
@@ -138,6 +147,9 @@ else
     if exist([batchRoot '\' batchName],'dir')
         strIn = 'i1j1'; %default
         tileFN = [batchRoot '\' batchName '\' strIn '\' strIn '.tif'];
+        if ~exist(tileFN,'file')
+            tileFN = [batchRoot '\' batchName '\' strIn '_processed\' strIn '_blue_RAW.tif'];
+        end
         while ~exist(tileFN,'file')
             x = inputdlg('In the batch folder can''t find tile image (\i1j1\i1j1.tif) to set bigWidth|bigHeight and other parameters. What other tile do you want to use?',...
                  'Input', 1, {'i1j1'});
@@ -168,11 +180,23 @@ else
 
         l = dir([batchRoot '\' batchName '\i*']); 
         nFiles = length(l);
+        foundTiles = 0;
         for i =1:nFiles
             l2 = l(i).name;
             if length(l2) ~= 4, continue; end
+            foundTiles = 1;            
             a(i,1) = str2num(l2(2)); 
             a(i,2) = str2num(l2(4)); 
+        end
+        if ~foundTiles  %check processed tiles instead
+                l = dir([batchRoot '\' batchName '\i*_processed']); 
+                nFiles = length(l);
+                for i =1:nFiles
+                    l2 = l(i).name;
+                    %if length(l2) ~= 4, continue; end
+                    a(i,1) = str2num(l2(2)); 
+                    a(i,2) = str2num(l2(4)); 
+                end
         end
         iTiles = max(a(:,1));
         jTiles = max(a(:,2));
@@ -454,7 +478,7 @@ if sel
         rmdir(str3,'s')
         %
         
-        waitbar(i/nFiles, hB, 'Step2 in progress (approx 40min) ...');   
+        waitbar(i/nFiles, hB, ['Step2 in progress (approx 40min) ' dn '...']);   
     end
     %MIJ.run('Close All'); % doesn't close Exception window
     %close(hBar);     %close all;
@@ -503,6 +527,11 @@ if sel
     for i=1:nFiles
         fn = tList(i).name;
         dn = [str1 fn '\'];
+        listJpg = dir([dn '*_blue_RAW_BG.tif']);
+        if ~length(listJpg)
+            disp('Tile is clear, skip.');
+            continue;
+        end
         copyfile(str2, [dn 'ProjectDef_seg.xml']);
         createInputImageXML(dn);
         %addpath(genpath(dn));
@@ -515,20 +544,12 @@ if sel
         %save Command Window output to runSegmLog.txt
         %# use try/catch and rename to i1j1c %test
         if status
-            %rmdir([dn '/'], 's'); 
-            s1 = strsplit(fn, '_');
-            fn = s1{1};
-            fn1 = [str1  fn '\' fn '.tif'];
-            fn2 = [str1  fn '\' fn '.tif_'];
-            copyfile(fn1,fn2);
-            copyfile([str1 '/' fn ],[str1 '/' fn 'm']);
-            %rmdir([str1 '/' fn ]);
             h = msgbox(['Folder ' fn '. Segmentation failed, continue.' ]);   
             pause(2);            
             close(h);
             continue
         end
-        waitbar(i/nFiles, hB, 'Step3 in progress (approx 50min) ...');   
+        waitbar(i/nFiles, hB, ['Step3 in progress (approx 50min) ' fn '...']);   
         h = msgbox(['Segmentation done! Folder ' fn]);
         pause(2);            
         close(h);
@@ -595,7 +616,7 @@ if sel
             h = msgbox(['Folder ' fn '. FTK RAW ASSOCIATIONS failed, continue.']);
             continue
         end
-        waitbar(i/nFiles, hB, 'Step4 in progress (approx 30-60min) ...');   
+        waitbar(i/nFiles, hB, ['Step4 in progress (approx 30-60min) ' fn '...']);   
         h = msgbox(['FTK RAW ASSOCIATIONS done! Folder ' fn]);
         pause(2);            
         close(h);
@@ -751,7 +772,7 @@ if sel
             disp(['File ' processedF ' doesn''t exist. Continue.']);
          end
         end
-        waitbar(i1/nFiles, hB, 'Step5 in progress (approx 15-20min) ...');       
+        waitbar(i1/nFiles, hB, ['Step5 in progress (approx 15-20min) ' processedF '...']);       
     end
     if j1 == 0
         errordlg(['Could not find processed tiles in directory ' batchFullName],'File Error');
@@ -792,6 +813,7 @@ end
 
 sel = get(hObject,'Value');
 if sel
+    roi40 = [];
     if strcmp(step3,'None')
         set(hObject,'Value',0);
         errordlg('Step3 not completed.');
@@ -978,6 +1000,30 @@ if sel
     cBigN(:,2) = mat2gray(cBig(:,2), [minGreen maxGreen]); 
     cBigN(:,3) = cBig(:,3);
     %}
+    %% plot ROI if defined
+    if isempty(sectName)
+        [dn fn] = fileparts(batchRoot);
+        [dn fn] = fileparts(dn);
+        sectName = fn;
+    end
+    csvFN = [batchRoot sectName '_40xROI.txt'];
+    if exist(csvFN,'file')
+        [roi40] = importdata(csvFN);
+        xv = roi40(:,1);
+        yv = roi40(:,2);
+%        redX = xBig(cBig(:,1)>0);
+%        redY = yBig(cBig(:,1)>0);
+        inP = inpolygon(xBig,yBig,xv,yv);
+        redNotIn = find(cBig(:,1)>0 & inP<1);
+        n40 = length(redNotIn);
+        for i = 1:n40
+%             cBig(xBig(~inP),1) = 0;
+%             cBig(xBig(~inP),3) = 1;
+            k = redNotIn(i);
+            cBig(k,1) = 0;
+            cBig(k,3) = 1;
+        end
+    end 
     
     %% Save allData to mat file, LM, 13Dec2013
     allData = [xBig, yBig, cBig, tracerInfo]; %5+6 columns
@@ -988,7 +1034,51 @@ if sel
     waitbar(1, hB, 'Step6 in progress, processing tiles...');   
     close(hB);
     
-    %% Save points to csv file for registration
+
+    %% Plot big image
+    disp('===== Plot the big image');
+    %plot whole slice
+    hFig = figure('Tag', 'bigPlot', 'Name', ['Slice Plot ' batchRoot]);   
+    
+    hObj = findobj('Tag','nTiles_value');
+    strVal = num2str(nTiles);
+    set(hObj,'String', strVal);
+    hObj = findobj('Tag','allCellsV');
+    nCells = length(xBig);
+    strVal = num2str(nCells);
+    set(hObj,'String', strVal);
+    saveProgressToXML({{'Section' 'nCells' num2str(nCells)}});
+    h = plot(xBig,yBig,'.','Color', 'b','MarkerSize', 1);
+    
+    %test
+    %--h = plot(xBig,yBig,'.','Color', [cBig(49,1) cBig(49,2) cBig(49,3)],'MarkerSize', 1);
+    % h = scatter(xBig,yBig,2,cBig); %,'.','Color', [cBig(49,1) cBig(49,2) cBig(49,3)],'MarkerSize', 1); ?use plot for Blue and scatter for others???
+
+    set(gca, 'Color', 'k');
+    %test axis([0 9972 0 15270]);
+    axis image; axis tight;
+    axis ij
+    
+    if ~isempty(roi40)
+        hold on
+        plot(roi40(:,1), roi40(:,2), 'w-');
+    end
+    
+    hObj = findobj('Tag','allRedV');
+    allRed = sum(cBig(:,1));   
+    strVal = num2str(allRed);
+    set(hObj,'String', strVal);  
+    hObj = findobj('Tag','allGreenV');
+    allGreen = sum(cBig(:,2));   
+    strVal = num2str(allGreen);
+    set(hObj,'String', strVal);  
+    
+    hObj = findobj('Tag','redTracer');
+    set(hObj,'Value',1);
+    BrainSegmenterGUI('redTracer_Callback',hObject,eventdata,guidata(hObject));
+    
+    %% Save tracer points to csv
+    % Get points to save to csv file for registration
     % check below section
     redX = xBig(cBig(:,1)>0);
     redY = yBig(cBig(:,1)>0);
@@ -1007,50 +1097,19 @@ if sel
 %     csvwrite(csvFN,x40int);
 %     disp(['40x image size in pixels: ' num2str(bigWidth) 'x' num2str(bigHeight)]);    
     
-    %% plot big image
-    disp('===== Plot the big image');
-    %% plot whole slice
-    hFig = figure('Tag', 'bigPlot', 'Name', ['Slice Plot ' batchRoot]);
-    hObj = findobj('Tag','nTiles_value');
-    strVal = num2str(nTiles);
-    set(hObj,'String', strVal);
-    hObj = findobj('Tag','allCellsV');
-    nCells = length(xBig);
-    strVal = num2str(nCells);
-    set(hObj,'String', strVal);
-    saveProgressToXML({{'Section' 'nCells' num2str(nCells)}});
-    h = plot(xBig,yBig,'.','Color', 'b','MarkerSize', 1);
-    %test
-    %--h = plot(xBig,yBig,'.','Color', [cBig(49,1) cBig(49,2) cBig(49,3)],'MarkerSize', 1);
-    % h = scatter(xBig,yBig,2,cBig); %,'.','Color', [cBig(49,1) cBig(49,2) cBig(49,3)],'MarkerSize', 1); ?use plot for Blue and scatter for others???
-
-    set(gca, 'Color', 'k');
-    %test axis([0 9972 0 15270]);
-    axis image; axis tight;
-    axis ij
-              
-    hObj = findobj('Tag','allRedV');
-    allRed = sum(cBig(:,1));   
-    strVal = num2str(allRed);
-    set(hObj,'String', strVal);  
-    hObj = findobj('Tag','allGreenV');
-    allGreen = sum(cBig(:,2));   
-    strVal = num2str(allGreen);
-    set(hObj,'String', strVal);  
-    
-    hObj = findobj('Tag','redTracer');
-    set(hObj,'Value',1);
-    BrainSegmenterGUI('redTracer_Callback',hObject,eventdata,guidata(hObject));
-
-    %% Save tracer points to csv
     dnImg = batchRoot;
     fnImg = dir([dnImg '*z0b.tif']);
     if exist([dnImg fnImg.name], 'file')
-        imgInfo = imfinfo([dnImg fnImg.name]);
+        img_z0b = [dnImg fnImg.name]; %&4test
+        imgInfo = imfinfo(img_z0b);
         imgInfo = imgInfo(1);
         x2p5Width = imgInfo.Width;
         x2p5Height = imgInfo.Height;
-        csvFN0 = [regisRoot sectName '/' sectName];
+        csvFN0 = [regisRoot sectName];
+        if ~exist([csvFN0 '\In\'], 'dir')
+                mkdir(csvFN0,'In');
+        end
+        csvFN1 = [csvFN0 '\In\' sectName];
         
         disp(['2.5x_b image size in pixels: ' num2str(x2p5Width) 'x' num2str(x2p5Height)]);
         xDiv = bigWidth/x2p5Width;
@@ -1059,9 +1118,36 @@ if sel
         x2p5(:,2) = x40(:,2)./yDiv; %15.99;
        
         x2p5int = uint16(x2p5);    
-        x2p5int2 = applyOffset(x2p5int); %x2p5int;
+        x2p5int2 = applyOffset(x2p5int);
+        savePoints2csv(csvFN1,x2p5int2,x2p5Width);
         
-        savePoints2csv(csvFN0,x2p5int2,x2p5Width);
+        %% test offset
+        %{ 4test
+        % save a copy of the Big Figure
+        set(gcf, 'InvertHardCopy', 'off');
+        print(hFig, '-dpng', '-r600', [csvFN1 '_bigPlotFigure.png']);
+
+        T1 = readtable([csvFN1 '_xy2p5xRedIn.csv']);
+        T2 = readtable([csvFN1 '_xy2p5xRed_mmIn.csv']);
+        img2p5B = [csvFN1 '_x2.5B.tif'];
+        img2p5B_ = imread(img2p5B);
+        img2p5z0b = img_z0b;
+        img2p5z0b_ = imread(img2p5B);
+        hFtest = figure();
+        hold on
+        C = imfuse(img2p5z0b_,img2p5B_,'falsecolor','Scaling','joint'); %,'ColorChannels',[1 2 0]);
+        imshow(C); 
+        title(['In points on ' img2p5B]);
+        hold on
+        xIn2p5 = T1.x;%/0.0036; %1); #2.5x space
+        yIn2p5 = T1.y;%/0.0036; %(:,2);
+        plot(xIn2p5,yIn2p5,'o','Color', 'r','MarkerSize', 5);
+        hold on
+        xIn2p5mm = T2.x/0.0036; %1); #2.5x space
+        yIn2p5mm = T2.y/0.0036; %(:,2);
+        plot(xIn2p5mm,yIn2p5mm,'*','Color', 'y','MarkerSize', 5);
+        print(hFtest, '-dpng', '-r600', [csvFN1 '_InPointsOnBlueChannel.png']);  
+        close(hFtest);
     else
          disp('Can''t find 2.5x image to get image info. Skip csv.');
     end
@@ -2194,13 +2280,13 @@ function nCells_Callback(hObject, eventdata, handles)
 %        str2double(get(hObject,'String')) returns contents of nCells as a double
 
 
-% --- Executes on button press in runAllSect.
-function runAllSect_Callback(hObject, eventdata, handles)
-% hObject    handle to runAllSect (see GCBO)
+% --- Executes on button press in useROI.
+function runAllSect_Test_Callback(hObject, eventdata, handles)
+% hObject    handle to useROI (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hint: get(hObject,'Value') returns toggle state of runAllSect
+% Hint: get(hObject,'Value') returns toggle state of useROI
 global batchRoot
 
 %% LM, Mar2014
@@ -2578,15 +2664,16 @@ global batchRoot regisRoot
 global flipS sectName
 
 x2p5int2 = x2p5int;
-[dn fn ext] = fileparts(batchRoot);
-[dn fn ext] = fileparts(dn);
-sectName = fn;
-sect = str2num(fn);
-dn = [dn '/ndpi4regis/'];
-regisRoot = dn;
+% [dn fn ext] = fileparts(batchRoot);
+% [dn fn ext] = fileparts(dn);
+% sectName = fn;
+ sect = str2num(sectName);
+% dn = [dn '/ndpi4regis/'];
+% regisRoot = dn;
 if isempty(x2p5int2) % no tracer points
     return
 end
+dn = regisRoot;
 list  = dir([dn '*offsets.csv']);
 if ~isempty(list) %offset file exists
     fn = [dn list(1).name];
@@ -2596,6 +2683,7 @@ if ~isempty(list) %offset file exists
     if ~isempty(i) %section offset found
         xo = offSets(i,2);
         yo = offSets(i,3);
+        disp(['Offset to apply: (' num2str(xo) ',' num2str(yo) ')']);
         x2p5int2(:,1) = x2p5int2(:,1)+xo;
         x2p5int2(:,2) = x2p5int2(:,2)+yo;
     end
@@ -2639,17 +2727,36 @@ function runOnAllSections_Callback(hObject, eventdata, handles)
 % Hints: contents = cellstr(get(hObject,'String')) returns runOnAllSections contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from runOnAllSections
 var1 = get(hObject,'Value');
+
+choice = questdlg('Confirm to run step on all sectons: ','All Sections',...
+                  'Yes','No','No');
+if strcmp(choice,'No'), return; end
+
 switch var1
     case 2
-        disp('Step1');
-        flipVar = 'flipX'
+        disp('Step0');
+        BrainSegmenterGUI('step0_Callback',hObject,eventdata,guidata(hObject));
     case 3
+        disp('Step1');
+        BrainSegmenterGUI('step1_Callback',hObject,eventdata,guidata(hObject));
+    case 4
         disp('Step2');
-        flipVar = 'flipY'
-    case 10
+        BrainSegmenterGUI('step2_Callback',hObject,eventdata,guidata(hObject));
+    case 5
+        disp('Step3');
+        BrainSegmenterGUI('step3_Callback',hObject,eventdata,guidata(hObject));
+    case 6
+        disp('Step4');
+        BrainSegmenterGUI('step4_Callback',hObject,eventdata,guidata(hObject));
+    case 7
+        disp('Step5');        
+        BrainSegmenterGUI('step5_Callback',hObject,eventdata,guidata(hObject));
+    case 8
         getNdpi4Regis();
+    case 9
+        splitChannelsBatchMode();
     otherwise 
-        rotateVar = 'None'
+        %rotateVar = 'None'
 end;
 %saveProgressToXML({{'Section' 'flipImage' rotateVar}});
 
@@ -2664,4 +2771,33 @@ function runOnAllSections_CreateFcn(hObject, eventdata, handles)
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in useROI.
+function useROI_Callback(hObject, eventdata, handles)
+% hObject    handle to useROI (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of useROI
+global batchRoot sectName
+
+hFig = findobj('Tag', 'bigPlot');
+if isempty(hFig)
+      errordlg('Big Plot figure not found.');
+      return
+end
+figure(hFig);
+h = imfreehand;
+%position = wait(h); 
+pos = getPosition(h);
+choice = questdlg('Save ROI? ','ROI',...
+                  'Yes','No','No');
+if strcmp(choice,'Yes')
+    csvFN = [batchRoot sectName '_40xROI.txt'];
+    if exist(csvFN,'file')
+        delete(csvFN);
+    end
+    csvwrite(csvFN,pos);
 end
