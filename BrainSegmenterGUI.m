@@ -79,15 +79,22 @@ global imageAnalysisStatus
 global step0 step1 step2 step3 step4 step5
 global rotate dataCompute
 global verGUI sectName regisRoot
+global brainRoot
 
-verGUI = '2.0.3';
+verGUI = '2.0.4';
 if nargin < 4
-    [fn, dn] = uigetfile({'*.ndpi';'*.*'},'Select the NDPI Image for Analysis');
+    [fn, dn, ext] = uigetfile({'*.ndpi';'*.*'},'Select the NDPI Image for Analysis');
 else
     dn = batchRoot;
     ndpi_files = dir(fullfile(batchRoot,'*.ndpi'));
     fn = ndpi_files(1).name;
 end
+
+hFig2 = findobj('Name','allSectionsView');
+close(hFig2);
+
+[fn3 dn3 ex3] = fileparts(fn);
+imgName = dn3;
 
 fullFN = fullfile(dn, fn);
 if isequal(fn,0)
@@ -111,6 +118,15 @@ batchRoot = dn;
 sectName = fn1;
 regisRoot = [dn1 '\ndpi4regis\'];
 
+[dn fn ext] = fileparts(dn1);
+brainRoot = dn;
+
+%set brainID
+[dn2 fn2 ext] = fileparts(brainRoot);
+brainID = fn2;
+hObj = findobj('Tag', 'tabBrain');
+set(hObj, 'Title', ['Brain: ' brainID]);
+
 hObj = findobj('Tag', 'tabSection');
 set(hObj, 'Title', ['Section: ' sectName]);
 
@@ -122,11 +138,12 @@ if exist(xmlFile, 'file')
     close(hM);
 else
     copyfile([homeGUI '\lib\ImageAnalysisProgress.xml'], xmlFile);
+    dnTmp = batchRoot;
+    imgNameTmp = imgName;
     loadProgressFromXML(xmlFile);
-    batchRoot = dn;
-    [dn fn e] = fileparts(fn);
-    batchName = ['batch_', fn];
-    imgName = fn;
+    batchRoot = dnTmp;
+    imgName = imgNameTmp;
+    batchName = ['batch_' imgName];
     para = [];
     para = {{'batchRoot' '' batchRoot}; {'batchName' '' batchName}; {'imgName' '' imgName}};
     saveProgressToXML(para);
@@ -341,8 +358,10 @@ end
 
 function step0_Callback(hObject, eventdata, handles)
 %% Split NDPI image in tiles
-global imgName batchRoot nTiles
+global imgName batchRoot nTiles step
 
+step = 'Step0'
+startTime = datetime
 if  isempty(batchRoot)
     set(hObject,'Value',0);
     errordlg('No Image Analysis Project opened.');
@@ -382,6 +401,8 @@ if sel
     hM = msgbox('Step0 Done. Select Rotate parameter ...');
     %pause(3); close(hM); %test
 end 
+saveRunInfo(startTime);
+
 
 
 function step1_Callback(hObject, eventdata, handles)
@@ -389,8 +410,10 @@ function step1_Callback(hObject, eventdata, handles)
 global imgName batchRoot batchName
 global iTiles jTiles nTiles
 global tileWidth tileHeight 
-global bigWidth bigHeight rotate
+global bigWidth bigHeight rotate step
 
+step = 'Step1'
+startTime = datetime
 if  isempty(batchRoot)
     set(hObject,'Value',0);
     errordlg('No Image Analysis Project opened.');
@@ -429,12 +452,15 @@ if sel
     pause(3);
     close(hM);
 end 
+saveRunInfo(startTime)
 
 
 function step2_Callback(hObject, eventdata, handles)
 %% Preprocess tiles
-global batchRoot batchName homeGUI
+global batchRoot batchName homeGUI step
 
+step = 'Step2'
+startTime = datetime
 if  isempty(batchRoot)
     set(hObject,'Value',0);
     errordlg('No Image Analysis Project opened.');
@@ -496,12 +522,15 @@ if sel
     pause(3);
     close(hM);
 end
+saveRunInfo(startTime)
 
 
 function step3_Callback(hObject, eventdata, handles)
 %% Run FTK cell segmentation on tiles
-global batchRoot batchName homeGUI
+global batchRoot batchName homeGUI step
 
+step = 'Step3'
+startTime = datetime
 if  isempty(batchRoot)
     if ~isempty(homeGUI)        
         [batch fileN ext] = fileparts(homeGUI);
@@ -530,6 +559,11 @@ if sel
         listJpg = dir([dn '*_blue_RAW_BG.tif']);
         if ~length(listJpg)
             disp('Tile is clear, skip.');
+            continue;
+        end
+        fnNuc = [dn 'Results_Image_nuc.tif'];
+        if exist(fnNuc, 'file')     
+            disp('Tile is segmented, skip.');
             continue;
         end
         copyfile(str2, [dn 'ProjectDef_seg.xml']);
@@ -565,13 +599,16 @@ if sel
     pause(3);            
     close(hB);
 end
+saveRunInfo(startTime)
 
 
 function step4_Callback(hObject, eventdata, handles)
 %% Run FTK associative rules for cell classification
 global batchRoot batchName nTile
-global homeGUI
+global homeGUI step
 
+step = 'Step4'
+startTime = datetime
 if  isempty(batchRoot)
     set(hObject,'Value',0);
     errordlg('No Image Analysis Project opened.');
@@ -595,7 +632,7 @@ if sel
         fn = tList(i).name;
         dn = [str1 fn '\'];
         if ~exist([dn 'ProjectDef_seg.xml'],'file')
-            h = msgbox(['RAW ASSOCIATIONS failed in folder ' dn '. XML definition file absent, skip.']);
+            h = msgbox(['Skip tile ' dn '. XML definition file absent.']);
             continue;
         end
         disp(['=== Get RAW ASSOCIATIONS in: ' fn]);
@@ -631,15 +668,18 @@ if sel
     pause(3);
     close(hM);
 end
+saveRunInfo(startTime)
 
 
 function step5_Callback(hObject, eventdata, handles)
 %% Compute min/max intensity
 % And append as 4 columns to result text file.
 global batchRoot batchName nTiles
-global redTresh greenTresh
+global redTresh greenTresh step
 global maxRedTresh maxGreenTresh flipS
 
+step = 'Step5'
+startTime = datetime
 if  isempty(batchRoot)
     set(hObject,'Value',0);
     errordlg('No Image Analysis Project opened.');
@@ -790,6 +830,7 @@ if sel
     pause(3);
     close(hM);
 end
+saveRunInfo(startTime)
 
 
 function step6_Callback(hObject, eventdata, handles)
@@ -2697,11 +2738,29 @@ if flipS
 end
 
 
-% --- Executes on button press in pushbutton17.
-function pushbutton17_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton17 (see GCBO)
+% --- Executes on button press in viewMetadata.
+function viewMetadata_Callback(hObject, eventdata, handles)
+% hObject    handle to viewMetadata (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+
+[fn, dn, ext] = uigetfile({'*.xml';'*.*'},'Select the ODML Metadata file');
+
+fullFN = fullfile(dn, fn);
+if isequal(fn,0)
+    disp('User selected Cancel');
+    return
+else
+    disp(['User selected: ' fullFN]);
+end
+
+web(fullFN)
+
+% [fn3 dn3 ex3] = fileparts(fn);
+% projectID = dn3;
+% hFig2 = findobj('Name','allSectionsView');
+% update Experiment name
 
 
 % --- Executes on button press in pushbutton18.
@@ -2726,6 +2785,8 @@ function runOnAllSections_Callback(hObject, eventdata, handles)
 
 % Hints: contents = cellstr(get(hObject,'String')) returns runOnAllSections contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from runOnAllSections
+global brainRoot
+
 var1 = get(hObject,'Value');
 
 choice = questdlg('Confirm to run step on all sectons: ','All Sections',...
@@ -2755,6 +2816,8 @@ switch var1
         getNdpi4Regis();
     case 9
         splitChannelsBatchMode();
+    case 10
+        getGUIcounts();
     otherwise 
         %rotateVar = 'None'
 end;
@@ -2801,3 +2864,39 @@ if strcmp(choice,'Yes')
     end
     csvwrite(csvFN,pos);
 end
+
+
+% --- Executes on button press in viewAllSections.
+function viewAllSections_Callback(hObject, eventdata, handles)
+% hObject    handle to viewAllSections (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global batchRoot sectName 
+global brainID brainRoot allSinfo
+
+%% check if brain ID already selected
+if isempty(brainID)
+    if isempty(batchRoot)
+        %select brain root folder
+        brainRoot = uigetdir('','Brain Root Directory')
+    else
+        [dn fn ext] = fileparts(batchRoot);
+        [dn fn ext] = fileparts(dn);
+        [dn fn ext] = fileparts(dn);
+        brainRoot = dn;
+    end
+
+    %set brainID
+    [dn fn ext] = fileparts(brainRoot);
+    brainID = fn;
+    hObj = findobj('Tag', 'tabBrain');
+    set(hObj, 'Title', ['Brain: ' brainID]);
+end
+getAllSinfo;
+allSectionsView;
+% xmlFile = [batchRoot 'ImageAnalysisProgress.xml'];
+% if exist(xmlFile, 'file')
+%     hM = msgbox('Progress XML file exists. Loading analysis...');
+%     updateControls(xmlFile);
+% else
+% end
