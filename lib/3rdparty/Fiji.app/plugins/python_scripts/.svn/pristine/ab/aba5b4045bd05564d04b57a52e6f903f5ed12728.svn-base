@@ -1,0 +1,224 @@
+import os, sys, glob
+#sys.path.append('c:\\bin\\ij.jar')
+#sys.path.append('c:\\bin\\')
+#import curves
+from ij import IJ, ImagePlus, ImageStack
+from ij.plugin import ChannelSplitter, ZProjector
+from ij.gui import GenericDialog
+
+# function defn for getting the new black level
+# finds the first peak in the histogram and then
+# goes past the peak and down until it reaches 25% of the peak
+def getThresh(h):
+    m = max(h[1:50])
+    n = m/10
+    i = 0
+    while h[i] != m:
+        i += 1
+
+    while h[i] > n:
+        i += 1
+
+    return i
+
+# function defn for getting the new white value
+# finds the top value in the histogram and sets it to 255
+def getMax(h):
+    i = 255
+    while h[i] == 0:
+        i -= 1
+
+    return i    
+
+# function defn for LUT adjustment
+# calculates the new LUT that will be used to stretch the histogram
+# basically a straight line calculation y = mx + b  with some 
+# checking to make sure values aren't outside [0 255].
+def lutAdj(mn,mx):
+    lut = [0 for i in range(256)]
+    m = 255/float(mx-mn)
+    b = -m*mn;
+    for i in range(256):
+        v = int(i*m + b)
+        if v < 0:
+            v = 0
+        elif v > 255:
+            v = 255
+
+        lut[i] = v
+        
+    return lut
+
+
+
+# get the folder to work on
+root = IJ.getDirectory('Choose stack folder');
+if not root:
+    exit(1)
+
+# make an output folder if necessary
+if root.endswith('\\'):
+    curdir = root.rstrip('\\')
+elif root.endswith('/'):
+    curdir = root.rstrip('/')
+else:
+    curdir = root
+
+[head,tail] = os.path.split(curdir)
+outdir = os.path.join(head, tail + '_processed\\')
+if not os.path.exists(outdir):
+    os.mkdir(outdir)
+
+IJ.log('Input image folder is: ' + root)
+IJ.log('Output will be saved to: ' + outdir)
+
+# make dialog to get filter values
+gd = GenericDialog("PreProcessing Options");
+gd.addMessage("Set the Median Filter radius for each channel\n(value of 0 means no filtering)\nBoth raw and processed images will be saved.")
+gd.addNumericField("Blue median radius", 3.0, 1)
+gd.addNumericField("Red median radius", 1.0, 1)
+gd.addNumericField("Green median radius", 0.0, 1)
+gd.showDialog();
+if gd.wasCanceled():
+    exit(1)
+
+radb = gd.getNextNumber();
+radr = gd.getNextNumber();
+radg = gd.getNextNumber();
+
+# Go into the directory named on command line and open all the tif
+# files into a stack. Also split the colour channels into individual stacks
+IJ.log('Starting PreProcessing...')
+fnames = glob.glob(root + '*.tif')
+if len(fnames) == 0:
+    IJ.log('No images found in folder: ' + root + '\nexiting.')
+    exit(1)
+
+fnames.sort()
+if len(fnames) > 1:
+    IJ.log('Creating stack from multiple files...')
+    imp = IJ.openImage(fnames[0]);
+    width = imp.width
+    height = imp.height
+    stack = ImageStack(width,height)
+    imp.close()
+    for f in fnames:
+        imp = IJ.openImage(f)
+        ip = imp.getProcessor()
+        stack.addSlice(f,ip)
+else:
+    IJ.log('Reading stack from single file...')
+    f = fnames[0]
+    imp = IJ.openImage(fnames[0])
+    stack = imp.getImageStack()
+    imp.close()
+
+nslice = stack.getSize()
+IJ.log('Number of slices in stack: ' + str(nslice))
+IJ.log('Splitting Channels...')
+cs = ChannelSplitter()
+[rstack,gstack,bstack] = cs.splitRGB(stack,0)
+f = os.path.basename(f)
+if '_Z' in f:
+    s = f.split('_Z')[0]
+else:
+    s = f.split('.tif')[0]
+
+imr = ImagePlus(s + '_red',rstack)
+img = ImagePlus(s + '_green',gstack)
+imb = ImagePlus(s + '_blue',bstack)
+
+# Save unprocessed channels
+IJ.log('Saving unrpocessed channels (name ends with RAW)')
+IJ.saveAs(imb, 'tif', outdir+imb.getTitle() + '_RAW')
+IJ.saveAs(imr, 'tif', outdir+imr.getTitle() + '_RAW')
+IJ.saveAs(img, 'tif', outdir+img.getTitle() + '_RAW')
+s = imr.getTitle().split('.tif')[0]
+imr.setTitle(s)
+s = img.getTitle().split('.tif')[0]
+img.setTitle(s)
+s = imb.getTitle().split('.tif')[0]
+imb.setTitle(s)
+
+# Run a median filter on channels that have radius > 0.  
+if radb or radr or radg:
+    IJ.log('\nDoing median filtering...')
+    for i in range(1,nslice+1):
+        if radb:
+            ip = bstack.getProcessor(i)
+            IJ.run(ImagePlus('',ip), "Median...", 'radius=' + str(radb))
+        if radr:    
+            ip = rstack.getProcessor(i)
+            IJ.run(ImagePlus('',ip), "Median...", 'radius=' + str(radr))
+        if radg:    
+            ip = gstack.getProcessor(i)
+            IJ.run(ImagePlus('',ip), "Median...", 'radius=' + str(radg))
+else:
+    IJ.log('\nSkipping median filtering.')
+
+
+# max a max z projection for each channel
+IJ.log('\nMaking Z projections...')
+zp = ZProjector(imb)
+zp.setStartSlice(1)
+zp.setStopSlice(nslice)
+zp.setMethod(1)
+zp.doProjection()
+imbz = zp.getProjection()
+#imbz.setTitle('Blue Z-Projection')
+#imbz.show()
+zp = ZProjector(imr)
+zp.setStartSlice(1)
+zp.setStopSlice(nslice)
+zp.setMethod(1)
+zp.doProjection()
+imrz = zp.getProjection()
+zp = ZProjector(img)
+zp.setStartSlice(1)
+zp.setStopSlice(nslice)
+zp.setMethod(1)
+zp.doProjection()
+imgz = zp.getProjection()
+
+# Calculate blue LUT
+IJ.log('\nAdjusting contrast...')
+h = imbz.getProcessor().getHistogram()
+t = getThresh(h)
+mx = getMax(h)
+IJ.log('Blue range is ' + str(t) + ' ' + str(mx))
+lut = lutAdj(t,mx)
+#lutb = curves.blueLut()
+
+# Calculate red LUT
+h = imrz.getProcessor().getHistogram()
+t = getThresh(h)
+mx = getMax(h)
+IJ.log('Red range is ' + str(t) + ' ' + str(mx))
+lutr = lutAdj(t,mx)
+
+# Calculate green LUT
+h = imgz.getProcessor().getHistogram()
+t = getThresh(h)
+mx = getMax(h)
+IJ.log('Green range is ' + str(t) + ' ' + str(mx))
+lutg = lutAdj(t,mx)
+
+# Stretch histograms
+for i in range(1,nslice+1):
+    ip = bstack.getProcessor(i)
+    ip.applyTable(lut)
+    ip = rstack.getProcessor(i)
+    ip.applyTable(lutr)
+    ip = gstack.getProcessor(i)
+    ip.applyTable(lutg)
+
+# Save output images to tif files
+imb.setTitle(imb.getTitle() + '_BG')
+imr.setTitle(imr.getTitle() + '_BG')
+img.setTitle(img.getTitle() + '_BG')
+IJ.log('Saving processed images (name ends with _BG).')
+IJ.saveAs(imb, 'tif', outdir+imb.getTitle())
+IJ.saveAs(imr, 'tif', outdir+imr.getTitle())
+IJ.saveAs(img, 'tif', outdir+img.getTitle())
+
+IJ.log('\nPreProcess Plugin Finished.')
